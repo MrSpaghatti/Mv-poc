@@ -123,16 +123,22 @@ class HebbianRAG:
             # If it's a valid ID but not in weights (e.g. loaded from existing store), init to 1.0
             self.weights[memory_id] = 1.0
 
-        current_weight = self.weights[memory_id]
+        current = self.weights[memory_id]
+
+        # --- FIX: LINEAR GROWTH WITH CAP ---
+        MAX_WEIGHT = 3.0
+        MIN_WEIGHT = 0.1
 
         if feedback > 0:
-            # Increase weight (e.g., * 1.1)
-            new_weight = current_weight * 1.1
+            # Add 0.2, cap at 3.0
+            new_weight = min(current + 0.2, MAX_WEIGHT)
+            print(f" >> Promoting Memory {memory_id[:8]}... (Weight: {current:.2f} -> {new_weight:.2f})")
         elif feedback < 0:
-            # Decay weight (e.g., * 0.9)
-            new_weight = current_weight * 0.9
+            # Subtract 0.2, floor at 0.1
+            new_weight = max(current - 0.2, MIN_WEIGHT)
+            print(f" >> Burying Memory {memory_id[:8]}... (Weight: {current:.2f} -> {new_weight:.2f})")
         else:
-            new_weight = current_weight
+            new_weight = current
 
         self.weights[memory_id] = new_weight
         self._save_weights()

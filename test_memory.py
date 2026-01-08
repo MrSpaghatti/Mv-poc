@@ -76,15 +76,15 @@ class TestHebbianRAG(unittest.TestCase):
         self.assertEqual(results[1]['adjusted_score'], 0.8)
 
         # Reinforce id2 (Language)
-        self.rag.reinforce(id2, feedback=1) # 1.0 * 1.1 = 1.1
+        self.rag.reinforce(id2, feedback=1) # 1.0 + 0.2 = 1.2
 
         # Retrieve again
         results_new = self.rag.retrieve("Python")
 
-        # id2 should now be first because 0.8 * 1.1 > 0.8 * 1.0
+        # id2 should now be first because 0.8 * 1.2 > 0.8 * 1.0
         self.assertEqual(results_new[0]['id'], id2)
-        self.assertAlmostEqual(results_new[0]['weight'], 1.1)
-        self.assertAlmostEqual(results_new[0]['adjusted_score'], 0.88)
+        self.assertAlmostEqual(results_new[0]['weight'], 1.2)
+        self.assertAlmostEqual(results_new[0]['adjusted_score'], 0.8 * 1.2)
 
         self.assertEqual(results_new[1]['id'], id1)
         self.assertEqual(results_new[1]['weight'], 1.0)
@@ -93,7 +93,28 @@ class TestHebbianRAG(unittest.TestCase):
     def test_reinforce_decay(self):
         mem_id = self.rag.store("Temporary fact.")
         self.rag.reinforce(mem_id, feedback=-1)
-        self.assertAlmostEqual(self.rag.weights[mem_id], 0.9)
+        # 1.0 - 0.2 = 0.8
+        self.assertAlmostEqual(self.rag.weights[mem_id], 0.8)
+
+    def test_reinforce_cap(self):
+        mem_id = self.rag.store("Popular fact.")
+        # Reinforce many times.
+        # Start 1.0. Max is 3.0. Steps of 0.2.
+        # (3.0 - 1.0) / 0.2 = 10 steps to reach max.
+        for _ in range(20):
+            self.rag.reinforce(mem_id, feedback=1)
+
+        self.assertAlmostEqual(self.rag.weights[mem_id], 3.0)
+
+    def test_reinforce_floor(self):
+        mem_id = self.rag.store("Unpopular fact.")
+        # Reinforce many times negative.
+        # Start 1.0. Min is 0.1. Steps of 0.2.
+        # (1.0 - 0.1) / 0.2 = 4.5 steps.
+        for _ in range(10):
+            self.rag.reinforce(mem_id, feedback=-1)
+
+        self.assertAlmostEqual(self.rag.weights[mem_id], 0.1)
 
 if __name__ == '__main__':
     unittest.main()
